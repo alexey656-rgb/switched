@@ -1,17 +1,13 @@
-//
-//  switchedApp.swift
-//  switched
-//
-//  Created by Alexey Ivanov on 5/13/26.
-//
-
 import SwiftUI
 
 @main
-struct switchedApp: App {
+struct SwitchedApp: App {
+    @State private var store = AppStore()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(store)
         }
     }
 }

@@ -1,0 +1,55 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode build output
+build/
+DerivedData/
+*.app
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Xcode user state (per-developer, must not be committed)
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+*.xcodeproj/xcuserdata/
+
+# CocoaPods (not used here, but harmless)
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Provisioning profiles & signing
+*.mobileprovision
+*.p12
+*.cer
+*.certSigningRequest
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Local secrets — never commit
+.env
+.env.*
+secrets.json
+**/Secrets.swift
