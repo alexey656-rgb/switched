@@ -33,13 +33,18 @@ struct TimelineView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
 
-            // Swipeable day pages.
+            // Swipeable day pages on iOS / Catalyst; static current-day on macOS
+            // (Mac users navigate via the chevrons in dateHeader and keyboard).
+            #if os(iOS) || targetEnvironment(macCatalyst)
             TabView(selection: dayTagBinding) {
                 ForEach(pageDates, id: \.self) { date in
                     dayBody(for: date).tag(date)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
+            #else
+            dayBody(for: selectedDate)
+            #endif
         }
         .background(Theme.paper)
         .onAppear { startNowTicker() }

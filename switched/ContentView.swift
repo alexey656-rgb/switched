@@ -1,9 +1,16 @@
 import SwiftUI
+
+#if canImport(UIKit)
 import UIKit
+typealias PlatformColor = UIColor
+#elseif canImport(AppKit)
+import AppKit
+typealias PlatformColor = NSColor
+#endif
 
 // MARK: - Design tokens
 
-extension UIColor {
+extension PlatformColor {
     fileprivate convenience init(themeHex hex: String) {
         var s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         if s.hasPrefix("#") { s.removeFirst() }
@@ -17,13 +24,23 @@ extension UIColor {
 }
 
 extension Color {
-    /// A color that adapts between light and dark mode.
+    /// A color that adapts between light and dark mode. Works on iOS,
+    /// Mac Catalyst, and native macOS.
     static func adaptive(light: String, dark: String) -> Color {
-        Color(uiColor: UIColor { trait in
+        #if canImport(UIKit)
+        return Color(uiColor: UIColor { trait in
             trait.userInterfaceStyle == .dark
                 ? UIColor(themeHex: dark)
                 : UIColor(themeHex: light)
         })
+        #elseif canImport(AppKit)
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
+            return NSColor(themeHex: isDark ? dark : light)
+        })
+        #else
+        return Color(red: 0.5, green: 0.5, blue: 0.5)
+        #endif
     }
 }
 
@@ -66,6 +83,21 @@ enum Theme {
     static let accent      = clay
     static let accentDeep  = clayDeep
     static let accentSoft  = claySoft
+}
+
+// MARK: - Cross-platform view helpers
+
+extension View {
+    /// `.navigationBarTitleDisplayMode(.inline)` on iOS / Catalyst;
+    /// no-op on native macOS where the modifier doesn't exist.
+    @ViewBuilder
+    func inlineNavTitle() -> some View {
+        #if os(iOS) || targetEnvironment(macCatalyst)
+        self.navigationBarTitleDisplayMode(.inline)
+        #else
+        self
+        #endif
+    }
 }
 
 /// Event tint pair: a saturated rail color + a pale background.
@@ -112,7 +144,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TopTabBar(selection: $tab)
+            TopTabBar(selection: $tab, onOpenAssistant: { openAssistant(with: nil) })
 
             Group {
                 switch tab {
@@ -136,6 +168,26 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        // macOS / Catalyst menu commands (⌘1, ⌘2, ⌘K, ⌘[, ⌘], ⌘T)
+        .onReceive(NotificationCenter.default.publisher(for: .switchedSelectTab)) { note in
+            if let key = note.object as? String,
+               let next = AppTab(rawValue: key.capitalized) {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { tab = next }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .switchedOpenAssistant)) { _ in
+            openAssistant(with: nil)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .switchedShiftDay)) { note in
+            let delta = note.object as? Int ?? 0
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                if delta == 0 {
+                    selectedDate = Calendar.current.startOfDay(for: Date())
+                } else if let next = Calendar.current.date(byAdding: .day, value: delta, to: selectedDate) {
+                    selectedDate = Calendar.current.startOfDay(for: next)
+                }
+            }
+        }
     }
 
     private func openAssistant(with draft: String?) {
@@ -148,6 +200,7 @@ struct ContentView: View {
 
 private struct TopTabBar: View {
     @Binding var selection: AppTab
+    let onOpenAssistant: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -159,6 +212,26 @@ private struct TopTabBar: View {
                         }
                     }
                 }
+
+                // ✨ AI Assistant button — same row as tabs.
+                Button(action: onOpenAssistant) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Assistant")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Theme.clay, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 14)
+                .padding(.leading, 8)
+                #if os(macOS) || targetEnvironment(macCatalyst)
+                .help("Open AI Assistant (⌘K)")
+                #endif
             }
             .padding(.top, 4)
             Rectangle().fill(Theme.hairline).frame(height: 1)

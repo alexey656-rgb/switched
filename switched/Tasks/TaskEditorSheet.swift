@@ -71,7 +71,7 @@ struct TaskEditorSheet: View {
             }
             .background(Theme.paperDeep)
             .navigationTitle(editingId == nil ? "New Task" : "Edit Task")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: {

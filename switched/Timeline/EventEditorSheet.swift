@@ -84,7 +84,7 @@ struct EventEditorSheet: View {
             }
             .background(Theme.bgSoft)
             .navigationTitle(editingId == nil ? "New" : "Edit")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: {
@@ -223,10 +223,17 @@ struct EventEditorSheet: View {
                             .datePickerStyle(.graphical)
                             .tint(Theme.accentDeep)
                     } else {
+                        #if os(iOS) || targetEnvironment(macCatalyst)
                         DatePicker("", selection: binding, displayedComponents: [.hourAndMinute])
                             .datePickerStyle(.wheel)
                             .labelsHidden()
                             .frame(maxWidth: .infinity)
+                        #else
+                        DatePicker("", selection: binding, displayedComponents: [.hourAndMinute])
+                            .datePickerStyle(.field)
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                        #endif
                     }
                 }
                 .padding(.horizontal, 12)

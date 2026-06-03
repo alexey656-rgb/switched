@@ -6,20 +6,91 @@ final class AppStore {
     var events: [Event] = []
     var tasks: [TaskItem] = []
 
-    /// AI conversation thread for the Inbox tab. Persists across tab switches
-    /// (in memory). v2 will persist to disk; for now resets on app launch.
+    /// AI conversation thread. Stays local-only — too big and noisy for KVS,
+    /// and there's no real value in syncing chat history right now.
     var chatHistory: [ChatMessage] = []
 
     private let eventsKey = "switched.events.v3"
     private let tasksKey  = "switched.tasks.v2"
     private let chatKey   = "switched.chat.v1"
-    /// Cap stored history to keep UserDefaults size sane.
+    /// Cap stored history to keep storage size sane.
     private let maxChatHistory = 500
+
+    /// iCloud Key-Value Store. Mirrors `events` and `tasks` to Apple's
+    /// per-user iCloud KVS so they sync across iPhone / iPad / Mac
+    /// automatically. 1 MB total budget — plenty for typical usage.
+    private let kvs = NSUbiquitousKeyValueStore.default
+    /// Suppresses save-back-to-kvs while we're applying a remote change,
+    /// otherwise the device that received the update echoes it back.
+    private var applyingRemote = false
 
     init() {
         load()
         migrateLegacyTasks()
         rolloverTasks(now: Date())
+        startICloudObservation()
+        // Ask iCloud to send us anything newer than what we have on disk.
+        kvs.synchronize()
+    }
+
+    // MARK: - iCloud sync
+
+    private func startICloudObservation() {
+        NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: kvs,
+            queue: .main
+        ) { [weak self] note in
+            self?.handleICloudChange(note)
+        }
+    }
+
+    private func handleICloudChange(_ note: Notification) {
+        let userInfo = note.userInfo ?? [:]
+        let reason = (userInfo[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int) ?? -1
+
+        switch reason {
+        case NSUbiquitousKeyValueStoreServerChange,
+             NSUbiquitousKeyValueStoreInitialSyncChange:
+            // Normal incoming change from another device, or the initial
+            // hand-off after enabling iCloud. Apply whatever keys changed.
+            let keys = (userInfo[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]) ?? []
+            applyRemoteKeys(keys)
+
+        case NSUbiquitousKeyValueStoreAccountChange:
+            // User signed in/out of iCloud, or switched account. Re-read
+            // everything from KVS (it has the new account's values) and
+            // overwrite local cache. Local-only chat history is preserved.
+            applyRemoteKeys([eventsKey, tasksKey])
+
+        case NSUbiquitousKeyValueStoreQuotaViolationChange:
+            // Over the 1 MB iCloud KVS budget. Skip the sync, log loudly
+            // so it shows up in console during testing. Future: migrate
+            // to CloudKit when this fires for real users.
+            print("⚠️ Switched: iCloud KVS quota exceeded — sync paused")
+
+        default:
+            // Unknown reason code — be conservative and re-pull everything.
+            applyRemoteKeys([eventsKey, tasksKey])
+        }
+    }
+
+    private func applyRemoteKeys(_ keys: [String]) {
+        applyingRemote = true
+        defer { applyingRemote = false }
+
+        if keys.contains(eventsKey),
+           let data = kvs.data(forKey: eventsKey),
+           let decoded = try? JSONDecoder().decode([Event].self, from: data) {
+            events = decoded
+            UserDefaults.standard.set(data, forKey: eventsKey)
+        }
+        if keys.contains(tasksKey),
+           let data = kvs.data(forKey: tasksKey),
+           let decoded = try? JSONDecoder().decode([TaskItem].self, from: data) {
+            tasks = decoded
+            UserDefaults.standard.set(data, forKey: tasksKey)
+        }
     }
 
     // MARK: - Chat history
@@ -258,14 +329,27 @@ final class AppStore {
 
     private func load() {
         let d = UserDefaults.standard
-        if let data = d.data(forKey: eventsKey),
+
+        // For events + tasks, iCloud wins over local cache if both exist
+        // (a newer device may have pushed an update before this one opened).
+        let eventsRemote = kvs.data(forKey: eventsKey)
+        let eventsLocal  = d.data(forKey: eventsKey)
+        if let data = eventsRemote ?? eventsLocal,
            let decoded = try? JSONDecoder().decode([Event].self, from: data) {
             events = decoded
+            // If we restored from iCloud, mirror into the local cache too.
+            if eventsRemote != nil { d.set(data, forKey: eventsKey) }
         }
-        if let data = d.data(forKey: tasksKey),
+
+        let tasksRemote = kvs.data(forKey: tasksKey)
+        let tasksLocal  = d.data(forKey: tasksKey)
+        if let data = tasksRemote ?? tasksLocal,
            let decoded = try? JSONDecoder().decode([TaskItem].self, from: data) {
             tasks = decoded
+            if tasksRemote != nil { d.set(data, forKey: tasksKey) }
         }
+
+        // Chat history stays local-only.
         if let data = d.data(forKey: chatKey),
            let decoded = try? JSONDecoder().decode([ChatMessage].self, from: data) {
             chatHistory = decoded
@@ -280,11 +364,48 @@ final class AppStore {
     private func saveEvents() {
         guard let data = try? JSONEncoder().encode(events) else { return }
         UserDefaults.standard.set(data, forKey: eventsKey)
+        // Don't echo a remote-received change straight back to iCloud.
+        guard !applyingRemote else { return }
+        pushToICloud(data: data, key: eventsKey)
     }
 
     private func saveTasks() {
         guard let data = try? JSONEncoder().encode(tasks) else { return }
         UserDefaults.standard.set(data, forKey: tasksKey)
+        guard !applyingRemote else { return }
+        pushToICloud(data: data, key: tasksKey)
+    }
+
+    /// 1 MB per-value KVS limit, with some headroom.
+    private static let kvsPerValueByteBudget = 900_000
+
+    private func pushToICloud(data: Data, key: String) {
+        if data.count > Self.kvsPerValueByteBudget {
+            print("⚠️ Switched: \(key) is \(data.count / 1024) KB — skipping iCloud push to avoid quota error")
+            return
+        }
+        kvs.set(data, forKey: key)
+        kvs.synchronize()
+    }
+
+    /// Pull the latest snapshot from iCloud on demand (e.g. when the
+    /// app comes back to the foreground). Cheap to call.
+    func refreshFromICloud() {
+        kvs.synchronize()
+        applyingRemote = true
+        defer { applyingRemote = false }
+        if let data = kvs.data(forKey: eventsKey),
+           let decoded = try? JSONDecoder().decode([Event].self, from: data),
+           decoded != events {
+            events = decoded
+            UserDefaults.standard.set(data, forKey: eventsKey)
+        }
+        if let data = kvs.data(forKey: tasksKey),
+           let decoded = try? JSONDecoder().decode([TaskItem].self, from: data),
+           decoded != tasks {
+            tasks = decoded
+            UserDefaults.standard.set(data, forKey: tasksKey)
+        }
     }
 }
 

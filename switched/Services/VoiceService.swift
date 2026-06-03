@@ -61,6 +61,7 @@ final class VoiceService {
     // MARK: - Internals
 
     private func requestMic() {
+        #if os(iOS) || targetEnvironment(macCatalyst)
         AVAudioApplication.requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self = self else { return }
@@ -68,6 +69,16 @@ final class VoiceService {
                 else { self.state = .error("Microphone not authorized") }
             }
         }
+        #else
+        // macOS: AVCaptureDevice handles the mic permission prompt.
+        AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if granted { self.beginListening() }
+                else { self.state = .error("Microphone not authorized") }
+            }
+        }
+        #endif
     }
 
     private func beginListening() {
@@ -76,9 +87,13 @@ final class VoiceService {
             return
         }
         do {
+            // AVAudioSession is iOS / Mac Catalyst only — on native macOS the
+            // audio engine doesn't need a session category.
+            #if os(iOS) || targetEnvironment(macCatalyst)
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            #endif
 
             request = SFSpeechAudioBufferRecognitionRequest()
             request?.shouldReportPartialResults = true
