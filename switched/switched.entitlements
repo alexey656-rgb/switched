@@ -10,15 +10,22 @@
 	<true/>
 	<key>com.apple.security.files.user-selected.read-only</key>
 	<true/>
-	<key>com.apple.developer.icloud-services</key>
-	<array>
-		<string>CloudKit</string>
-	</array>
-	<key>com.apple.developer.icloud-container-identifiers</key>
-	<array>
-		<string>iCloud.com.alexey.switched</string>
-	</array>
-	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
-	<string>$(TeamIdentifierPrefix)com.alexey.switched</string>
+	<!--
+	  iCloud sync (Key-Value Store) is disabled while running on a
+	  Personal (free) Apple Developer team — Apple doesn't allow
+	  iCloud entitlements on personal teams. Re-enable these three
+	  keys after enrolling in the paid Apple Developer Program:
+
+	  <key>com.apple.developer.icloud-services</key>
+	  <array>
+	    <string>CloudKit</string>
+	  </array>
+	  <key>com.apple.developer.icloud-container-identifiers</key>
+	  <array>
+	    <string>iCloud.com.alexey.switched</string>
+	  </array>
+	  <key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	  <string>$(TeamIdentifierPrefix)com.alexey.switched</string>
+	-->
 </dict>
 </plist>

@@ -270,8 +270,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = switched/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Switched uses the microphone so you can dictate events and tasks to the assistant.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Switched uses speech recognition to convert your dictated notes into events and tasks.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -321,8 +321,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = switched/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Switched uses the microphone so you can dictate events and tasks to the assistant.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Switched uses speech recognition to convert your dictated notes into events and tasks.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
